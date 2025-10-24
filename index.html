@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Esparagoza Dental Hub — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+<style>
+  :root{
+    --brand:#0b6bcb;
+    --accent:#2ea0ff;
+    --success:#00b386;
+    --danger:#d9534f;
+    --card-bg:#fff;
+    --muted:#7b9bb8;
+    --radius:12px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Poppins',sans-serif}
+  body{background:linear-gradient(180deg,#eef7ff, #f7fbff);min-height:100vh;color:#08324a}
+  .container{max-width:1100px;margin:28px auto;padding:20px}
+  .header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand img{height:56px;border-radius:10px}
+  .brand h1{font-size:20px;color:var(--brand)}
+  .card{background:var(--card-bg);border-radius:var(--radius);box-shadow:0 8px 30px rgba(7,36,63,0.06);padding:18px}
+  .row{display:flex;gap:12px;align-items:center}
+  .toggle{display:flex;gap:8px;align-items:center}
+  .toggle button{padding:8px 12px;border-radius:999px;border:none;font-weight:700;cursor:pointer}
+  .toggle .on{background:linear-gradient(90deg,#6ee0a2,var(--success));color:#04331f}
+  .toggle .off{background:linear-gradient(90deg,#ffdede,#ff8a8a);color:#4a0b0b}
+
+  /* Table */
+  table{width:100%;border-collapse:collapse;margin-top:14px}
+  th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #eef4fb;font-size:14px}
+  th{color:var(--muted);font-weight:700}
+  tr:hover td{background:rgba(11,107,203,0.02)}
+  .status-pill{padding:6px 10px;border-radius:999px;font-weight:700;font-size:13px}
+  .status-pending{background:#fff1c9;color:#5c4b00}
+  .status-approved{background:#e8ffef;color:#006435}
+  .status-rejected{background:#ffecec;color:#7a1a1a}
+
+  /* Actions */
+  .actions button{margin-right:6px;padding:8px 10px;border-radius:8px;border:none;cursor:pointer;font-weight:700}
+  .btn-approve{background:var(--success);color:#fff}
+  .btn-reject{background:var(--danger);color:#fff}
+  .btn-delete{background:#f0f0f0;color:#333}
+  .btn-small{padding:6px 8px;font-size:13px;border-radius:8px}
+
+  /* Controls / calendar button */
+  .controls{display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .controls input, .controls select{padding:10px;border-radius:10px;border:1px solid #d7eafc;min-width:160px}
+  .controls .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+  /* Calendar modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,0.6);backdrop-filter:blur(6px);justify-content:center;align-items:center;z-index:2000}
+  .modal-overlay.show{display:flex}
+  .cal-modal{width:92%;max-width:760px;background:var(--card-bg);border-radius:12px;box-shadow:0 20px 60px rgba(7,36,63,0.15);padding:18px;position:relative}
+  .cal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+  .cal-day{aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;border-radius:8px;background:#fff;color:var(--brand);font-weight:700;cursor:pointer;transition:all .15s}
+  .cal-day.closed{background:#e0e0e0;color:#777}
+  .cal-day.other{opacity:.35}
+  .cal-weeknames{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:6px;color:var(--muted);font-weight:700;text-align:center}
+
+  .close-cal{position:absolute;right:18px;bottom:18px;background:linear-gradient(90deg,var(--accent),var(--brand));color:#fff;border:none;padding:10px 14px;border-radius:10px;cursor:pointer}
+
+  /* responsive */
+  @media(max-width:880px){
+    .row{flex-direction:column;align-items:flex-start}
+    th:nth-child(4), td:nth-child(4){display:none} /* hide time column on small screens */
+  }
+
+  /* Toast */
+  .toast-wrap{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:3000}
+  .toast{background:var(--brand);color:#fff;padding:10px 14px;border-radius:10px;margin-top:8px;opacity:0;transition:opacity .25s}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="brand">
+        <img src="https://i.imgur.com/t942gBV.png" alt="logo">
+        <div>
+          <h1>Esparagoza Dental Hub — Admin</h1>
+          <div style="font-size:13px;color:var(--muted)">Manage bookings · approve · reject · dentist status · schedule</div>
+        </div>
+      </div>
+      <div class="row" style="gap:18px">
+        <div style="text-align:right">
+          <div style="font-size:13px;color:var(--muted);">Dentist Status</div>
+          <div class="toggle" id="dentistToggleWrap">
+            <button id="btnDentistIn" class="on">IN</button>
+            <button id="btnDentistOut" class="off">OUT</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Quick Stats -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div class="card" style="flex:1;min-width:200px">
+        <div style="font-size:13px;color:var(--muted)">Total Bookings</div>
+        <div id="totalBookings" style="font-size:20px;font-weight:700;margin-top:6px">—</div>
+      </div>
+      <div class="card" style="flex:1;min-width:200px">
+        <div style="font-size:13px;color:var(--muted)">Pending</div>
+        <div id="pendingCount" style="font-size:20px;font-weight:700;margin-top:6px">—</div>
+      </div>
+      <div class="card" style="flex:1;min-width:200px">
+        <div style="font-size:13px;color:var(--muted)">Upcoming (next 7 days)</div>
+        <div id="upcomingCount" style="font-size:20px;font-weight:700;margin-top:6px">—</div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap">
+        <div class="controls" style="flex:1">
+          <input id="searchInput" placeholder="Search name / email / service">
+          <select id="filterStatus">
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <select id="sortBy">
+            <option value="date_asc">Date ↑</option>
+            <option value="date_desc">Date ↓</option>
+            <option value="created_desc">Newest</option>
+          </select>
+          <div class="right" style="margin-left:auto">
+            <button id="btnRefresh" class="btn-small">Refresh</button>
+            <button id="btnClearRejected" class="btn-small">Clear Rejected</button>
+            <!-- NEW: View Calendar button -->
+            <button id="btnViewCalendar" class="btn-small" style="background:linear-gradient(90deg,var(--accent),var(--brand));color:#fff">🗓 View Calendar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bookings table -->
+    <div class="card" style="overflow:auto">
+      <table id="bookingsTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Service</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Status</th>
+            <th style="min-width:260px">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="bookingsBody">
+          <!-- rows injected here -->
+        </tbody>
+      </table>
+    </div>
+
+    <div class="toast-wrap" id="toastWrap"></div>
+  </div>
+
+  <!-- Calendar Modal -->
+  <div class="modal-overlay" id="calendarModal">
+    <div class="cal-modal" role="dialog" aria-modal="true">
+      <div class="cal-top">
+        <button id="calPrev" class="btn-small">◀</button>
+        <div id="calMonthTitle" style="font-weight:700;color:var(--brand)"></div>
+        <button id="calNext" class="btn-small">▶</button>
+      </div>
+      <div class="cal-weeknames">
+        <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+      </div>
+      <div class="cal-grid" id="adminCalGrid"></div>
+
+      <button class="close-cal" id="closeCalendarBtn">Close Calendar</button>
+    </div>
+  </div>
+
+  <script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getDatabase, ref, onValue, get, set, push, remove, update, runTransaction } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+
+/* ---------- config ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyCV39b2CkzS_tt75SVXa6z95s6f4qVlfLg",
+  authDomain: "esparagozadentalclinic-6a744.firebaseapp.com",
+  databaseURL: "https://esparagozadentalclinic-6a744-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "esparagozadentalclinic-6a744",
+  storageBucket: "esparagozadentalclinic-6a744.firebasestorage.app",
+  messagingSenderId: "959639046373",
+  appId: "1:959639046373:web:ccf39df13d94e527fcec0c"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+/* ---------- EmailJS keys (your provided) ---------- */
+const EMAILJS_PUBLIC = "cVyQCkIy0P6hPyKrH";
+const EMAILJS_SERVICE = "service_7k6q958";
+const TEMPLATE_APPROVED = "template_7i693da";
+const TEMPLATE_REJECTED = "template_rejected"; // replace with your actual rejected template ID if different
+
+/* ---------- DOM ---------- */
+const bookingsBody = document.getElementById("bookingsBody");
+const totalBookingsEl = document.getElementById("totalBookings");
+const pendingCountEl = document.getElementById("pendingCount");
+const upcomingCountEl = document.getElementById("upcomingCount");
+const searchInput = document.getElementById("searchInput");
+const filterStatus = document.getElementById("filterStatus");
+const sortBy = document.getElementById("sortBy");
+const btnRefresh = document.getElementById("btnRefresh");
+const btnClearRejected = document.getElementById("btnClearRejected");
+const toastWrap = document.getElementById("toastWrap");
+const btnDentistIn = document.getElementById("btnDentistIn");
+const btnDentistOut = document.getElementById("btnDentistOut");
+const btnViewCalendar = document.getElementById("btnViewCalendar");
+const calendarModal = document.getElementById("calendarModal");
+const adminCalGrid = document.getElementById("adminCalGrid");
+const calMonthTitle = document.getElementById("calMonthTitle");
+const calPrev = document.getElementById("calPrev");
+const calNext = document.getElementById("calNext");
+const closeCalendarBtn = document.getElementById("closeCalendarBtn");
+
+/* ---------- State ---------- */
+let bookings = {};
+let closedDates = {}; // map yyyy-mm-dd => true
+let displayedCalYear, displayedCalMonth;
+let maxSlots = 1;
+
+/* ---------- Utilities ---------- */
+function showToast(msg, type="info"){
+  const el=document.createElement("div"); el.className="toast show"; el.textContent=msg; toastWrap.appendChild(el);
+  setTimeout(()=>el.classList.remove("show"), 2600);
+  setTimeout(()=>el.remove(), 3000);
+}
+function slotKey(time){ return time ? time.replace(/[^a-zA-Z0-9]/g,"_").toLowerCase() : ""; }
+function fmt(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+
+/* ---------- EmailJS helper ---------- */
+function sendEmail(templateId, data){
+  try{ emailjs.init(EMAILJS_PUBLIC); }catch(e){}
+  return emailjs.send(EMAILJS_SERVICE, templateId, data)
+    .then(()=> showToast("Email sent"))
+    .catch(err => { console.error("EmailJS error:", err); showToast("Email failed","error"); });
+}
+
+/* ---------- Dentist status ---------- */
+const dentistRef = ref(db, "dentist_status");
+onValue(dentistRef, snap=>{
+  const v = snap.exists() ? String(snap.val()).toUpperCase() : "OUT";
+  btnDentistIn.classList.toggle("on", v==="IN");
+  btnDentistIn.classList.toggle("off", v!=="IN");
+  btnDentistOut.classList.toggle("on", v==="OUT");
+  btnDentistOut.classList.toggle("off", v!=="OUT");
+});
+btnDentistIn.addEventListener("click", ()=> set(dentistRef, "IN").then(()=>showToast("Dentist: IN")));
+btnDentistOut.addEventListener("click", ()=> set(dentistRef, "OUT").then(()=>showToast("Dentist: OUT")));
+
+/* ---------- load maxSlots & closed_dates & bookings live ---------- */
+onValue(ref(db, "settings/maxSlots"), s=>{ maxSlots = s.exists() ? s.val() : 1; });
+onValue(ref(db, "closed_dates"), s=>{ closedDates = s.exists() ? s.val() : {}; renderCalendarModal(displayedCalYear, displayedCalMonth); });
+onValue(ref(db, "bookings"), s=>{ bookings = s.exists() ? s.val() : {}; renderBookings(); updateStats(); });
+
+/* ---------- Render & stats ---------- */
+function updateStats(){
+  const ids = Object.keys(bookings || {});
+  totalBookingsEl.textContent = ids.length;
+  const pending = ids.filter(id => (bookings[id].status||"pending")==="pending").length;
+  pendingCountEl.textContent = pending;
+  const now = new Date(); const in7 = new Date(); in7.setDate(now.getDate()+7);
+  const upcoming = ids.filter(id=>{ const b=bookings[id]; if(!b || !b.date) return false; const d=new Date(b.date); return d>=now && d<=in7; }).length;
+  upcomingCountEl.textContent = upcoming;
+}
+
+function renderBookings(){
+  bookingsBody.innerHTML = "";
+  const rows = Object.entries(bookings || {});
+  const q = searchInput.value.trim().toLowerCase();
+  let filtered = rows.filter(([id,b])=>{
+    if(!b) return false;
+    if(filterStatus.value!=="all" && (b.status||"pending") !== filterStatus.value) return false;
+    if(!q) return true;
+    const hay = `${b.name||""} ${b.email||""} ${b.service||""}`.toLowerCase();
+    return hay.includes(q);
+  });
+
+  filtered.sort((a,b)=>{
+    const A=a[1], B=b[1];
+    if(sortBy.value==="date_asc") return new Date(A.date)-new Date(B.date);
+    if(sortBy.value==="date_desc") return new Date(B.date)-new Date(A.date);
+    return (B.createdAt||"") > (A.createdAt||"") ? -1:1;
+  });
+
+  filtered.forEach(([id,b])=>{
+    const tr=document.createElement("tr");
+    const nameTd=document.createElement("td"); nameTd.textContent=b.name||"(no name)";
+    const serviceTd=document.createElement("td"); serviceTd.textContent=b.service||"";
+    const dateTd=document.createElement("td"); dateTd.textContent=b.date||"";
+    const timeTd=document.createElement("td"); timeTd.textContent=b.time||"";
+    const statusTd=document.createElement("td");
+    const st=(b.status||"pending");
+    const pill=document.createElement("span"); pill.className="status-pill";
+    pill.textContent=st.toUpperCase();
+    if(st==="pending") pill.classList.add("status-pending");
+    if(st==="approved") pill.classList.add("status-approved");
+    if(st==="rejected") pill.classList.add("status-rejected");
+    statusTd.appendChild(pill);
+
+    const actionsTd=document.createElement("td"); actionsTd.className="actions";
+    const approveBtn=document.createElement("button"); approveBtn.className="btn-approve"; approveBtn.textContent="Approve";
+    approveBtn.addEventListener("click", ()=>handleApprove(id,b));
+    const rejectBtn=document.createElement("button"); rejectBtn.className="btn-reject"; rejectBtn.textContent="Reject";
+    rejectBtn.addEventListener("click", ()=>handleReject(id,b));
+    const deleteBtn=document.createElement("button"); deleteBtn.className="btn-delete"; deleteBtn.textContent="Delete";
+    deleteBtn.addEventListener("click", ()=>handleDelete(id,b));
+    const viewBtn=document.createElement("button"); viewBtn.className="btn-small"; viewBtn.textContent="Details";
+    viewBtn.addEventListener("click", ()=>showDetailsModal(b));
+
+    actionsTd.appendChild(approveBtn);
+    actionsTd.appendChild(rejectBtn);
+    actionsTd.appendChild(deleteBtn);
+    actionsTd.appendChild(viewBtn);
+
+    tr.appendChild(nameTd); tr.appendChild(serviceTd); tr.appendChild(dateTd); tr.appendChild(timeTd); tr.appendChild(statusTd); tr.appendChild(actionsTd);
+    bookingsBody.appendChild(tr);
+  });
+}
+
+/* ---------- Approve / Reject / Delete handlers ---------- */
+async function handleApprove(id, booking){
+  if(!confirm(`Approve booking for ${booking.name} on ${booking.date} ${booking.time}?`)) return;
+  try{
+    await update(ref(db, `bookings/${id}`), { status: "approved" });
+    showToast("Booking approved");
+    await sendEmail(TEMPLATE_APPROVED, {
+      name: booking.name||"",
+      email: booking.email||"",
+      phone: booking.phone||"",
+      service: booking.service||"",
+      date: booking.date||"",
+      time: booking.time||"",
+      notes: booking.notes||""
+    });
+  }catch(err){ console.error(err); showToast("Failed to approve","error"); }
+}
+
+async function handleReject(id, booking){
+  if(!confirm(`Reject booking for ${booking.name} on ${booking.date} ${booking.time}?`)) return;
+  try{
+    await update(ref(db, `bookings/${id}`), { status: "rejected" });
+    showToast("Booking rejected");
+    await sendEmail(TEMPLATE_REJECTED, {
+      name: booking.name||"",
+      email: booking.email||"",
+      phone: booking.phone||"",
+      service: booking.service||"",
+      date: booking.date||"",
+      time: booking.time||"",
+      notes: booking.notes||""
+    });
+  }catch(err){ console.error(err); showToast("Failed to reject","error"); }
+}
+
+/* Delete: decrement slot_counts then remove booking */
+async function handleDelete(id, booking){
+  if(!confirm(`Delete booking for ${booking.name} (${booking.date} ${booking.time})? This action cannot be undone.`)) return;
+  try{
+    if(booking.date && booking.time){
+      const tkey = slotKey(booking.time);
+      const slotRef = ref(db, `slot_counts/${booking.date}/${tkey}`);
+      // decrement safely via transaction
+      await runTransaction(slotRef, current => {
+        if (!current) return 0;
+        const next = current - 1;
+        return next < 0 ? 0 : next;
+      });
+    }
+    await remove(ref(db, `bookings/${id}`));
+    showToast("Booking deleted and slot count adjusted");
+  }catch(err){ console.error(err); showToast("Delete failed","error"); }
+}
+
+/* ---------- Details modal (simple alert) ---------- */
+function showDetailsModal(b){
+  const lines = [
+    `Name: ${b.name||""}`,
+    `Service: ${b.service||""}`,
+    `Date: ${b.date||""}`,
+    `Time: ${b.time||""}`,
+    `Phone: ${b.phone||""}`,
+    `Email: ${b.email||""}`,
+    `Notes: ${b.notes||""}`
+  ];
+  alert(lines.join("\n"));
+}
+
+/* ---------- Controls ---------- */
+searchInput.addEventListener("input", ()=>renderBookings());
+filterStatus.addEventListener("change", ()=>renderBookings());
+sortBy.addEventListener("change", ()=>renderBookings());
+btnRefresh.addEventListener("click", ()=>{ renderBookings(); showToast("Refreshed"); });
+btnClearRejected.addEventListener("click", async ()=>{
+  if(!confirm("Delete all rejected bookings?")) return;
+  const ids = Object.keys(bookings||{}).filter(id => (bookings[id].status||"pending")==="rejected");
+  try{ for(const id of ids) await remove(ref(db, `bookings/${id}`)); showToast("Rejected cleared"); }catch(e){ console.error(e); showToast("Failed","error"); }
+});
+
+/* ---------- Calendar modal logic ---------- */
+function startCalendar(){
+  const now=new Date();
+  displayedCalYear = now.getFullYear();
+  displayedCalMonth = now.getMonth();
+  renderCalendarModal(displayedCalYear, displayedCalMonth);
+}
+function renderCalendarModal(y,m){
+  if(typeof y === "undefined"){ const now=new Date(); y=now.getFullYear(); m=now.getMonth(); }
+  displayedCalYear = y; displayedCalMonth = m;
+  const first = new Date(y,m,1);
+  calMonthTitle.textContent = first.toLocaleString(undefined,{month:"long", year:"numeric"});
+  adminCalGrid.innerHTML = "";
+  // fill blanks
+  const start = first.getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  for(let i=0;i<start;i++){
+    const d=document.createElement("div"); d.className="cal-day other"; adminCalGrid.appendChild(d);
+  }
+  for(let d=1; d<=daysInMonth; d++){
+    const date = new Date(y,m,d);
+    const iso = fmt(date);
+    const dayEl = document.createElement("div");
+    dayEl.className = "cal-day";
+    if(closedDates && closedDates[iso]) dayEl.classList.add("closed");
+    dayEl.textContent = d;
+    dayEl.onclick = async () => {
+      // toggle closed_dates/<iso>
+      const pathRef = ref(db, `closed_dates/${iso}`);
+      const exists = closedDates && closedDates[iso];
+      try{
+        if(exists) {
+          await remove(pathRef);
+        } else {
+          await set(pathRef, true);
+        }
+        showToast(exists ? `${iso} opened` : `${iso} closed`);
+        // closedDates will update through onValue listener and re-render automatically
+      }catch(err){ console.error(err); showToast("Failed to toggle date","error"); }
+    };
+    adminCalGrid.appendChild(dayEl);
+  }
+}
+
+/* Prev / Next */
+calPrev.addEventListener("click", ()=>{ const d=new Date(displayedCalYear,displayedCalMonth-1,1); renderCalendarModal(d.getFullYear(), d.getMonth()); });
+calNext.addEventListener("click", ()=>{ const d=new Date(displayedCalYear,displayedCalMonth+1,1); renderCalendarModal(d.getFullYear(), d.getMonth()); });
+
+/* Open/close modal */
+btnViewCalendar.addEventListener("click", ()=>{
+  calendarModal.classList.add("show");
+  calendarModal.style.display = "flex";
+  startCalendar();
+});
+closeCalendarBtn.addEventListener("click", ()=>{ calendarModal.classList.remove("show"); setTimeout(()=>{ calendarModal.style.display="none"; }, 300); });
+calendarModal.addEventListener("click", (e)=>{ if(e.target === calendarModal){ calendarModal.classList.remove("show"); setTimeout(()=>{ calendarModal.style.display="none"; }, 300); } });
+
+/* ---------- Init ---------- */
+renderBookings();
+updateStats();
+startCalendar();
+
+</script>
+</body>
+  </html>
