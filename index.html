@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Esparagoza Dental Hub — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+<style>
+  :root{
+    --brand:#0b6bcb;
+    --accent:#2ea0ff;
+    --success:#00b386;
+    --danger:#d9534f;
+    --card-bg:#fff;
+    --muted:#7b9bb8;
+    --radius:12px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Poppins',sans-serif}
+  body{background:linear-gradient(180deg,#eef7ff, #f7fbff);min-height:100vh;color:#08324a}
+  .container{max-width:1100px;margin:28px auto;padding:20px}
+  .header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand img{height:56px;border-radius:10px}
+  .brand h1{font-size:20px;color:var(--brand)}
+  .card{background:var(--card-bg);border-radius:var(--radius);box-shadow:0 8px 30px rgba(7,36,63,0.06);padding:18px}
+  .row{display:flex;gap:12px;align-items:center}
+  .toggle{display:flex;gap:8px;align-items:center}
+  .toggle button{padding:8px 12px;border-radius:999px;border:none;font-weight:700;cursor:pointer}
+  .toggle .on{background:linear-gradient(90deg,#6ee0a2,var(--success));color:#04331f}
+  .toggle .off{background:linear-gradient(90deg,#ffdede,#ff8a8a);color:#4a0b0b}
+
+  /* Table */
+  table{width:100%;border-collapse:collapse;margin-top:14px}
+  th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #eef4fb;font-size:14px}
+  th{color:var(--muted);font-weight:700}
+  tr:hover td{background:rgba(11,107,203,0.02)}
+  .status-pill{padding:6px 10px;border-radius:999px;font-weight:700;font-size:13px}
+  .status-pending{background:#fff1c9;color:#5c4b00}
+  .status-approved{background:#e8ffef;color:#006435}
+  .status-rejected{background:#ffecec;color:#7a1a1a}
+
+  /* Actions */
+  .actions button{margin-right:6px;padding:8px 10px;border-radius:8px;border:none;cursor:pointer;font-weight:700}
+  .btn-approve{background:var(--success);color:#fff}
+  .btn-reject{background:var(--danger);color:#fff}
+  .btn-delete{background:#f0f0f0;color:#333}
+  .btn-small{padding:6px 8px;font-size:13px;border-radius:8px}
+
+  /* Filters / search */
+  .controls{display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .controls input, .controls select{padding:10px;border-radius:10px;border:1px solid #d7eafc;min-width:160px}
+
+  /* responsive */
+  @media(max-width:880px){
+    .row{flex-direction:column;align-items:flex-start}
+    th:nth-child(4), td:nth-child(4){display:none} /* hide phone column on small screens */
+  }
+
+  /* Toast */
+  .toast-wrap{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:2000}
+  .toast{background:var(--brand);color:#fff;padding:10px 14px;border-radius:10px;margin-top:8px;opacity:0;transition:opacity .25s}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="brand">
+        <img src="https://i.imgur.com/t942gBV.png" alt="logo">
+        <div>
+          <h1>Esparagoza Dental Hub — Admin</h1>
+          <div style="font-size:13px;color:var(--muted)">Manage bookings · approve · reject · dentist status</div>
+        </div>
+      </div>
+      <div class="row" style="gap:18px">
+        <div style="text-align:right">
+          <div style="font-size:13px;color:var(--muted);">Dentist Status</div>
+          <div class="toggle" id="dentistToggleWrap">
+            <button id="btnDentistIn" class="on">IN</button>
+            <button id="btnDentistOut" class="off">OUT</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Quick Stats -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div class="card" style="flex:1;min-width:200px">
+        <div style="font-size:13px;color:var(--muted)">Total Bookings</div>
+        <div id="totalBookings" style="font-size:20px;font-weight:700;margin-top:6px">—</div>
+      </div>
+      <div class="card" style="flex:1;min-width:200px">
+        <div style="font-size:13px;color:var(--muted)">Pending</div>
+        <div id="pendingCount" style="font-size:20px;font-weight:700;margin-top:6px">—</div>
+      </div>
+      <div class="card" style="flex:1;min-width:200px">
+        <div style="font-size:13px;color:var(--muted)">Upcoming (next 7 days)</div>
+        <div id="upcomingCount" style="font-size:20px;font-weight:700;margin-top:6px">—</div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap">
+        <div class="controls">
+          <input id="searchInput" placeholder="Search name / email / service">
+          <select id="filterStatus">
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <select id="sortBy">
+            <option value="date_asc">Date ↑</option>
+            <option value="date_desc">Date ↓</option>
+            <option value="created_desc">Newest</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button id="btnRefresh" class="btn-small">Refresh</button>
+          <button id="btnClearRejected" class="btn-small">Clear Rejected</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bookings table -->
+    <div class="card" style="overflow:auto">
+      <table id="bookingsTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Service</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Status</th>
+            <th style="min-width:220px">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="bookingsBody">
+          <!-- rows injected here -->
+        </tbody>
+      </table>
+    </div>
+
+    <div class="toast-wrap" id="toastWrap"></div>
+        </div>
+
+  <script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getDatabase, ref, onValue, get, set, push, remove, update } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+
+/* ---------- config ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyCV39b2CkzS_tt75SVXa6z95s6f4qVlfLg",
+  authDomain: "esparagozadentalclinic-6a744.firebaseapp.com",
+  databaseURL: "https://esparagozadentalclinic-6a744-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "esparagozadentalclinic-6a744",
+  storageBucket: "esparagozadentalclinic-6a744.firebasestorage.app",
+  messagingSenderId: "959639046373",
+  appId: "1:959639046373:web:ccf39df13d94e527fcec0c"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+/* ---------- EmailJS keys (your provided) ---------- */
+const EMAILJS_PUBLIC = "cVyQCkIy0P6hPyKrH";
+const EMAILJS_SERVICE = "service_7k6q958";
+const TEMPLATE_APPROVED = "template_7i693da";
+const TEMPLATE_REJECTED = "template_rejected"; // <- replace if your rejected template ID is different
+
+/* DOM references */
+const bookingsBody = document.getElementById("bookingsBody");
+const totalBookingsEl = document.getElementById("totalBookings");
+const pendingCountEl = document.getElementById("pendingCount");
+const upcomingCountEl = document.getElementById("upcomingCount");
+const searchInput = document.getElementById("searchInput");
+const filterStatus = document.getElementById("filterStatus");
+const sortBy = document.getElementById("sortBy");
+const btnRefresh = document.getElementById("btnRefresh");
+const btnClearRejected = document.getElementById("btnClearRejected");
+const toastWrap = document.getElementById("toastWrap");
+const btnDentistIn = document.getElementById("btnDentistIn");
+const btnDentistOut = document.getElementById("btnDentistOut");
+
+/* state */
+let bookings = {}; // keyed by id
+
+/* toast helper */
+function showToast(msg, type="info"){
+  const el=document.createElement("div"); el.className="toast show"; el.textContent=msg; toastWrap.appendChild(el);
+  setTimeout(()=>el.classList.remove("show"), 2800);
+  setTimeout(()=>el.remove(), 3000);
+}
+
+/* EmailJS helper */
+function sendEmail(templateId, data){
+  try{ emailjs.init(EMAILJS_PUBLIC); }catch(e){}
+  return emailjs.send(EMAILJS_SERVICE, templateId, data)
+    .then(()=>{ showToast("Email sent"); })
+    .catch(err=>{ console.error("EmailJS error:", err); showToast("Email failed","error"); });
+}
+
+/* ---------- Dentist status controls ---------- */
+const dentistRef = ref(db, "dentist_status");
+onValue(dentistRef, snap=>{
+  const v = snap.exists()?String(snap.val()).toUpperCase():"OUT";
+  btnDentistIn.classList.toggle("on", v==="IN");
+  btnDentistIn.classList.toggle("off", v!=="IN");
+  btnDentistOut.classList.toggle("on", v==="OUT");
+  btnDentistOut.classList.toggle("off", v!=="OUT");
+});
+btnDentistIn.addEventListener("click", ()=> set(dentistRef, "IN").then(()=>showToast("Dentist set to IN")));
+btnDentistOut.addEventListener("click", ()=> set(dentistRef, "OUT").then(()=>showToast("Dentist set to OUT")));
+
+/* ---------- Bookings listener (live) ---------- */
+const bookingsRef = ref(db, "bookings");
+onValue(bookingsRef, snap=>{
+  bookings = snap.exists() ? snap.val() : {};
+  renderBookings();
+  updateStats();
+});
+
+/* ---------- Render & helpers ---------- */
+function updateStats(){
+  const ids = Object.keys(bookings || {});
+  totalBookingsEl.textContent = ids.length;
+  const pending = ids.filter(id => (bookings[id].status||"pending")==="pending").length;
+  pendingCountEl.textContent = pending;
+  // upcoming next 7 days
+  const now = new Date();
+  const in7 = new Date(); in7.setDate(now.getDate()+7);
+  const upcoming = ids.filter(id=>{
+    const b=bookings[id];
+    if(!b || !b.date) return false;
+    const d = new Date(b.date);
+    return d >= now && d <= in7;
+  }).length;
+  upcomingCountEl.textContent = upcoming;
+}
+
+function renderBookings(){
+  bookingsBody.innerHTML = "";
+  const rows = Object.entries(bookings || {});
+  // apply search & filter
+  const q = searchInput.value.trim().toLowerCase();
+  let filtered = rows.filter(([id, b])=>{
+    if(!b) return false;
+    if(filterStatus.value!=="all" && (b.status||"pending") !== filterStatus.value) return false;
+    if(!q) return true;
+    const hay = `${b.name||""} ${b.email||""} ${b.service||""}`.toLowerCase();
+    return hay.includes(q);
+  });
+
+  // sort
+  filtered.sort((a,b)=>{
+    const A=a[1], B=b[1];
+    if(sortBy.value==="date_asc") return new Date(A.date)-new Date(B.date);
+    if(sortBy.value==="date_desc") return new Date(B.date)-new Date(A.date);
+    return (B.createdAt||"") > (A.createdAt||"") ? -1:1;
+  });
+
+  // render
+  filtered.forEach(([id, b])=>{
+    const tr = document.createElement("tr");
+    const nameTd = document.createElement("td"); nameTd.textContent = b.name || "(no name)";
+    const serviceTd = document.createElement("td"); serviceTd.textContent = b.service || "";
+    const dateTd = document.createElement("td"); dateTd.textContent = b.date || "";
+    const timeTd = document.createElement("td"); timeTd.textContent = b.time || "";
+    const statusTd = document.createElement("td");
+    const st = (b.status||"pending");
+    const pill = document.createElement("span"); pill.className = "status-pill";
+    pill.textContent = st.toUpperCase();
+    if(st==="pending") pill.classList.add("status-pending");
+    if(st==="approved") pill.classList.add("status-approved");
+    if(st==="rejected") pill.classList.add("status-rejected");
+    statusTd.appendChild(pill);
+
+    const actionsTd = document.createElement("td"); actionsTd.className="actions";
+    // approve button
+    const approveBtn = document.createElement("button"); approveBtn.className="btn-approve actions-btn"; approveBtn.textContent="Approve";
+    approveBtn.addEventListener("click", ()=>handleApprove(id, b));
+    // reject button
+    const rejectBtn = document.createElement("button"); rejectBtn.className="btn-reject actions-btn"; rejectBtn.textContent="Reject";
+    rejectBtn.addEventListener("click", ()=>handleReject(id, b));
+    // delete button
+    const deleteBtn = document.createElement("button"); deleteBtn.className="btn-delete actions-btn"; deleteBtn.textContent="Delete";
+    deleteBtn.addEventListener("click", ()=>handleDelete(id, b));
+
+    // small view details button
+    const viewBtn = document.createElement("button"); viewBtn.className="btn-small"; viewBtn.textContent="Details";
+    viewBtn.addEventListener("click", ()=>showDetailsModal(b));
+
+    actionsTd.appendChild(approveBtn);
+    actionsTd.appendChild(rejectBtn);
+    actionsTd.appendChild(deleteBtn);
+    actionsTd.appendChild(viewBtn);
+
+    tr.appendChild(nameTd); tr.appendChild(serviceTd); tr.appendChild(dateTd); tr.appendChild(timeTd); tr.appendChild(statusTd); tr.appendChild(actionsTd);
+    bookingsBody.appendChild(tr);
+  });
+}
+
+/* ---------- Actions: approve / reject / delete ---------- */
+async function handleApprove(id, booking){
+  if(!confirm(`Approve booking for ${booking.name} on ${booking.date} ${booking.time}?`)) return;
+  try{
+    await update(ref(db, `bookings/${id}`), { status: "approved" });
+    showToast("Booking approved");
+    // send approved email
+    await sendEmail(TEMPLATE_APPROVED, {
+      name: booking.name||"",
+      email: booking.email||"",
+      phone: booking.phone||"",
+      service: booking.service||"",
+      date: booking.date||"",
+      time: booking.time||"",
+      notes: booking.notes||""
+    });
+  }catch(err){ console.error(err); showToast("Failed to approve","error"); }
+}
+
+async function handleReject(id, booking){
+  if(!confirm(`Reject booking for ${booking.name} on ${booking.date} ${booking.time}?`)) return;
+  try{
+    await update(ref(db, `bookings/${id}`), { status: "rejected" });
+    showToast("Booking rejected");
+    // send rejected email (use your rejected template id)
+    await sendEmail(TEMPLATE_REJECTED, {
+      name: booking.name||"",
+      email: booking.email||"",
+      phone: booking.phone||"",
+      service: booking.service||"",
+      date: booking.date||"",
+      time: booking.time||"",
+      notes: booking.notes||""
+    });
+  }catch(err){ console.error(err); showToast("Failed to reject","error"); }
+}
+
+async function handleDelete(id, booking){
+  if(!confirm(`Delete booking for ${booking.name} (${booking.date} ${booking.time})? This action cannot be undone.`)) return;
+  try{
+    await remove(ref(db, `bookings/${id}`));
+    showToast("Booking deleted");
+  }catch(err){ console.error(err); showToast("Delete failed","error"); }
+}
+
+/* ---------- Utilities ---------- */
+function showDetailsModal(b){
+  const html = `
+    <div style="padding:8px">
+      <h3>${b.name||"(no name)"}</h3>
+      <p><b>Service:</b> ${b.service||""}</p>
+      <p><b>Date:</b> ${b.date||""} <b>Time:</b> ${b.time||""}</p>
+      <p><b>Phone:</b> ${b.phone||""}</p>
+      <p><b>Email:</b> ${b.email||""}</p>
+      <p><b>Notes:</b> ${b.notes||""}</p>
+    </div>
+  `;
+  // simple modal: use browser confirm for now
+  alert(stripHtml(html).replace(/<[^>]*>?/gm, "\n"));
+}
+function stripHtml(input){ return input.replace(/<\/?[^>]+(>|$)/g, ""); }
+
+/* ---------- Controls ---------- */
+searchInput.addEventListener("input", ()=>renderBookings());
+filterStatus.addEventListener("change", ()=>renderBookings());
+sortBy.addEventListener("change", ()=>renderBookings());
+btnRefresh.addEventListener("click", ()=>{ renderBookings(); showToast("Refreshed"); });
+
+btnClearRejected.addEventListener("click", async ()=>{
+  if(!confirm("Delete all rejected bookings?")) return;
+  const ids = Object.keys(bookings||{}).filter(id => (bookings[id].status||"pending")==="rejected");
+  try{
+    for(const id of ids) await remove(ref(db, `bookings/${id}`));
+    showToast("Rejected bookings cleared");
+  }catch(e){ console.error(e); showToast("Failed clearing","error"); }
+});
+
+/* ---------- Init ---------- */
+renderBookings();
+updateStats();
+
+</script>
+</body>
+</html>
