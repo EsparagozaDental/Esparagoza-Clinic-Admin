@@ -338,12 +338,33 @@ async function handleReject(id, booking){
   }catch(err){ console.error(err); showToast("Failed to reject","error"); }
 }
 
-async function handleDelete(id, booking){
-  if(!confirm(`Delete booking for ${booking.name} (${booking.date} ${booking.time})? This action cannot be undone.`)) return;
-  try{
+async function handleDelete(id, booking) {
+  if (!confirm(`Delete booking for ${booking.name} (${booking.date} ${booking.time})? This action cannot be undone.`)) return;
+  
+  try {
+    // 🔹 Convert time to slot key
+    const timeKey = booking.time ? booking.time.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase() : null;
+
+    // 🔹 Decrease the slot count in slot_counts
+    if (booking.date && timeKey) {
+      const slotRef = ref(db, `slot_counts/${booking.date}/${timeKey}`);
+      const slotSnap = await get(slotRef);
+      if (slotSnap.exists()) {
+        const currentCount = slotSnap.val();
+        if (currentCount > 0) {
+          await set(slotRef, currentCount - 1);
+        }
+      }
+    }
+
+    // 🔹 Remove the booking itself
     await remove(ref(db, `bookings/${id}`));
-    showToast("Booking deleted");
-  }catch(err){ console.error(err); showToast("Delete failed","error"); }
+    showToast("Booking deleted and slot reopened");
+
+  } catch (err) {
+    console.error(err);
+    showToast("Delete failed", "error");
+  }
 }
 
 /* ---------- Utilities ---------- */
